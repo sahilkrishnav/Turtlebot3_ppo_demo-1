@@ -33,9 +33,6 @@ class MDPDataCollector(Node):
         self.timer = self.create_timer(0.1, self.control_loop)  # 10 Hz
         self.previous_state = None  # For saving previous state
 
-        # Fixed linear velocity
-        self.linear_velocity_range = [0.05, 0.2]  # Constant forward velocity
-
         # Sinusoidal angular velocity parameters
         self.start_time = time.time()
         self.angular_amplitude = np.random.uniform(0.3, 1.0)  # Random amplitude
