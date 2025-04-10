@@ -3,7 +3,10 @@ from rclpy.node import Node
 from geometry_msgs.msg import PoseStamped
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import Twist
+import numpy as np
 import math
+import pickle
+import time
 
 class RobotController(Node):
     def __init__(self):
@@ -18,8 +21,16 @@ class RobotController(Node):
         self.publisher_ = self.create_publisher(Twist, 'cmd_vel', 10)
 
         self.current_pose = None
-        self.target_pose = [1.0, 1.0]  # Example target in meters
+        # Load the entire policy object
+        with open("model.p", "rb") as f:
+            self.policy = pickle.load(f)
+        self.ref_trajectory = np.load('ref.npz')
         self.timer = self.create_timer(0.1, self.control_loop)  
+
+        self.internal_counter = 0
+
+        time.sleep(5) # wait for the initialization of robots
+        
 
     def pose_callback(self, msg):
         self.current_pose = msg
@@ -29,26 +40,24 @@ class RobotController(Node):
             return
         x = self.current_pose.pose.position.x
         y = self.current_pose.pose.position.y
-
         yaw = self.current_pose.pose.orientation.z  # assuming yaw was stored in `.z`
+        yaw = yaw % (2 * math.pi)
 
-        dx = self.target_pose[0] - x
-        dy = self.target_pose[1] - y
-
-        distance = math.sqrt(dx**2 + dy**2)
-        angle_to_goal = math.atan2(dy, dx)
-
-        vel_msg = Twist()
+        x = np.array([x, y, yaw])
+        state = np.concatenate((x, self.ref_trajectory[self.internal_counter]))
 
         # Turn toward the goal
-        yaw_error = angle_to_goal - yaw
-        if abs(yaw_error) > 0.1:
-            vel_msg.angular.z = 0.3 * yaw_error
-        else:
-            # Move forward
-            vel_msg.linear.x = 0.5 * distance
-
+        a = self.policy(state)
+        a = a.cpu().numpy().squeeze(0) if a.shape[-1] > 1 else [a.item()]
+        
+        # translate to the ros2 command
+        vel_msg = Twist()
+        vel_msg.linear.x = a[0]
+        vel_msg.angular.z = a[1]
+            
         self.publisher_.publish(vel_msg)
+
+        self.internal_counter += 1
 
 def main(args=None):
     rclpy.init(args=args)
