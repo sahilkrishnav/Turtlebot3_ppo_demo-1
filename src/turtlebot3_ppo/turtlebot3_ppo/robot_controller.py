@@ -21,8 +21,9 @@ class RobotController(Node):
         self.publisher_ = self.create_publisher(Twist, 'cmd_vel', 10)
 
         self.current_pose = None
+        algo_name = "c3m"
         # Load the entire policy object
-        with open("model.p", "rb") as f:
+        with open(f"model/{algo_name}.p", "rb") as f:
             self.policy = pickle.load(f)
         self.ref_trajectory = np.load('ref.npz')
         self.timer = self.create_timer(0.1, self.control_loop)  
